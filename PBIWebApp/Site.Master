@@ -1,0 +1,236 @@
+﻿<%@ Master Language="C#" AutoEventWireup="true" CodeBehind="Site.master.cs" Inherits="PBIWebApp.SiteMaster" %>
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head runat="server">
+    <title>Power BI - Web application</title>
+    <script type="text/javascript">
+
+        var COMBO_TILES = "MainContent_ddlIconos";
+        var COMBO_REPORTS = "MainContent_ddlReports";
+        var CHANGE_EVENT = "change";
+        var ON_CHANGE_EVENT = "onchange";
+        var MESSAGE_EVENT = "message";
+        var ON_MESSAGE_EVENT = "onmessage";
+        var HIDDEN_ACCESS_TOKEN = "MainContent_accessTokenTextbox";
+        var IFRAME_EMBED_TILE = "iFrameEmbedTile";
+        var IFRAME_EMBED_REPORT = "iFrameEmbedReport";
+        var DASHBOARD_ID_EQUAL = "dashboardId=";
+        var EMPTY = "";
+        var TILE_CLICKED = "tileClicked";
+        var AMPERSON = "&";
+        var ZERO = 0;
+        var ONE = 1;
+        var WIDTH_VALUE = 500;
+        var HEIGHT_VALUE = 500;
+        var SLASH_EMBED = "/embed";
+        var DASHBOARD_ZERO = "/dashboards/{0}";
+        var ZERO_EMBRACE = "{0}";
+        var PARAM_WIDTH = "&width=";
+        var PARAM_HEIGHT = "&height=";
+        var ACTION_LOAD_TILE = "loadTile";
+        var ACTION_REPORT_PAGE_LOADED = "reportPageLoaded";
+        var ACTION_LOAD_REPORT = "loadReport";
+        var ASTERISK_MESSAGE = "*";
+
+        window.onload = function () {
+            // client side click to embed a selected tile.
+            var el = document.getElementById(COMBO_TILES);
+            if (el) {
+                if (el.addEventListener) {
+                    el.addEventListener(CHANGE_EVENT, updateEmbedTile, false);
+                } else {
+                    el.attachEvent(ON_CHANGE_EVENT, updateEmbedTile);
+                }
+            }
+            
+
+            //How to navigate from a Power BI Tile to the dashboard
+            // listen for message to receive tile click messages.
+            if (window.addEventListener) {
+                window.addEventListener(MESSAGE_EVENT, receiveMessage, false);
+            } else {
+                window.attachEvent(ON_MESSAGE_EVENT, receiveMessage);
+            }
+
+            //How to handle server side post backs
+            // handle server side post backs, optimize for reload scenarios
+            // show embedded tile if all fields were filled in.
+            var accessTokenElement = document.getElementById(HIDDEN_ACCESS_TOKEN);
+            if(null !== accessTokenElement){
+                var accessToken = accessTokenElement.value;
+                if (EMPTY !== accessToken) {
+                    updateEmbedTile();
+                    updateEmbedReport();
+                }
+                
+            }
+
+            // client side click to embed a selected report.
+            var elDom = document.getElementById(COMBO_REPORTS);
+            if (elDom) {
+                if (elDom.addEventListener) {
+                    elDom.addEventListener(CHANGE_EVENT, updateEmbedReport, false);
+                } else {
+                    elDom.attachEvent(ON_CHANGE_EVENT, updateEmbedReport);
+                }
+            }
+            
+
+            // listen for message to receive message from embedded report.
+            if (window.addEventListener) {
+                window.addEventListener(MESSAGE_EVENT, receiveMessageReport, false);
+            } else {
+                window.attachEvent(ON_MESSAGE_EVENT, receiveMessageReport);
+            }
+        };
+
+        var width = 500;
+        var height = 500;
+
+        //How to navigate from a Power BI Tile to the dashboard
+        // The embedded tile posts message for click to parent window.  
+        // Listen and handle as appropriate
+        // The sample shows how to open the tile source.
+        function receiveMessage(event)
+        {
+            if (event.data) {
+                try {
+                    var messageData = JSON.parse(event.data);
+                    if (messageData.event === TILE_CLICKED)
+                    {
+                        //Get IFrame source and construct dashboard url
+                        var iFrameSrc = document.getElementById(event.srcElement.iframe.id).src;
+
+                        //Split IFrame source to get dashboard id
+                        var dashboardId = iFrameSrc.split(DASHBOARD_ID_EQUAL)[ONE].split(AMPERSON)[ZERO];
+
+                        //Get PowerBI service url
+                        var urlVal = iFrameSrc.split(SLASH_EMBED)[ZERO] + DASHBOARD_ZERO;
+                        urlVal = urlVal.replace(ZERO_EMBRACE, dashboardId);
+
+                        window.open(urlVal);
+                    }
+                }
+                catch (e) {
+                    // In a production app, handle exception
+                }
+            }
+        }
+
+        // update embed tile
+        function updateEmbedTile() {
+            // check if the embed url was selected
+            var comboTile = document.getElementById(COMBO_TILES);
+            if (comboTile) {
+                var embedTileUrl = comboTile.value;
+
+                // to load a tile do the following:
+                // 1: set the url, include size.
+                // 2: add a onload handler to submit the auth token
+                var iframe = document.getElementById(IFRAME_EMBED_TILE);
+                if (EMPTY === embedTileUrl) {
+                    iframe.src = EMPTY;
+                    return;
+                } else {
+                    iframe.src = embedTileUrl + PARAM_WIDTH + width + PARAM_HEIGHT + height;
+                    iframe.onload = postActionLoadTile;
+                }                                                                    
+            }            
+        }
+
+        
+        // post the auth token to the iFrame. 
+        function postActionLoadTile() {
+            // get the access token.
+            var accessToken = document.getElementById(HIDDEN_ACCESS_TOKEN).value;
+
+            // return if no a
+            if (EMPTY === accessToken)
+                return;
+
+            var h = height;
+            var w = width; 
+
+            // construct the push message structure
+            var m = { action: ACTION_LOAD_TILE, accessToken: accessToken, height: h, width: w };
+            var message = JSON.stringify(m);
+
+            // push the message.
+            var iframe = document.getElementById(IFRAME_EMBED_TILE);
+            iframe.contentWindow.postMessage(message, ASTERISK_MESSAGE);;
+        }
+
+        // The embedded report posts message for errors to parent window.  listen and handle as appropriate
+        function receiveMessageReport(event) {
+            if (event.data) {
+                try {
+                    var messageData = JSON.parse(event.data);
+                    if (messageData.event === ACTION_REPORT_PAGE_LOADED) {
+                    }
+                }
+                catch (e) {
+                    // do something smart
+                }
+            }
+        }
+
+        // update embed report
+        function updateEmbedReport() {
+
+            // check if the embed url was selected
+            var comboReports = document.getElementById(COMBO_REPORTS);
+            if (comboReports) {
+                var embedUrl = comboReports.value;
+                // to load a report do the following:
+                // 1: set the url
+                // 2: add a onload handler to submit the auth token
+                var iframe = document.getElementById(IFRAME_EMBED_REPORT);
+                if (EMPTY === embedUrl) {
+                    iframe.src = EMPTY;
+                    return;
+                } else {
+                    iframe.src = embedUrl;
+                    iframe.onload = postActionLoadReport;
+                }                                                                    
+            }
+            
+        }
+
+        // post the auth token to the iFrame. 
+        function postActionLoadReport() {
+
+            // get the access token.
+            var accessToken = document.getElementById(HIDDEN_ACCESS_TOKEN).value;
+
+            // return if no a
+            if (EMPTY === accessToken)
+                return;
+
+            // construct the push message structure
+            // this structure also supports setting the reportId, groupId, height, and width.
+            // when using a report in a group, you must provide the groupId on the iFrame SRC
+            var m = { action: ACTION_LOAD_REPORT, accessToken: accessToken };
+            var message = JSON.stringify(m);
+
+            // push the message.
+            var iframe = document.getElementById(IFRAME_EMBED_REPORT);
+            iframe.contentWindow.postMessage(message, ASTERISK_MESSAGE);;
+        }
+
+    </script>
+
+</head>
+<body>
+    <form runat="server">
+        <div>
+            <asp:ContentPlaceHolder ID="Stylesheets" runat="server">
+                <link rel="stylesheet" href="/css/master.css" type="text/css" />
+            </asp:ContentPlaceHolder>
+            <asp:ContentPlaceHolder ID="MainContent" runat="server">
+            </asp:ContentPlaceHolder>
+        </div>
+    </form>
+</body>
+</html>
